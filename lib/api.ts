@@ -848,12 +848,15 @@ export const setUserRole = (id: number, roleId: string) =>
     body: JSON.stringify({ role_id: roleId }),
   });
 
-/** The new password only takes effect on the next login — the current token keeps working. */
-export const changePassword = (currentPassword: string, newPassword: string) =>
-  apiFetch<{ status: string; message: string }>("/auth/change-password", {
+/** Changing the password signs out every other device; this one keeps going on the fresh token. */
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const res = await apiFetch<{ status: string; message: string; access_token?: string }>("/auth/change-password", {
     method: "PATCH",
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
+  if (res.access_token) setToken(res.access_token, localStorage.getItem(ACCESS_TOKEN_KEY) !== null);
+  return res;
+}
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
