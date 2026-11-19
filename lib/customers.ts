@@ -7,6 +7,7 @@ export const CUSTOMER_STAGES: { id: CustomerStage; label: string; className: str
   { id: "pre_closure", label: "Pre-Closure", className: "bg-[#fbecd6] text-[#6e420a]" },
   { id: "sold", label: "Sold", className: "bg-[#dcefe2] text-[#1d4a2a]" },
   { id: "lost", label: "Closed Lost", className: "bg-[#f6e3e1] text-[#7c2d2d]" },
+  { id: "listed", label: "Listed for sale", className: "bg-[#e8e4f4] text-[#3f3470]" },
 ];
 
 const COMMON_COUNTRIES = [

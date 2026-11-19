@@ -17,6 +17,22 @@ export const PROJECT_TYPES: SelectOption[] = [
   { id: "non_exclusive", name: "Non-exclusive" },
 ];
 
+export type AreaUnit = "sqft" | "marla";
+
+export const AREA_UNIT_OPTIONS: SelectOption[] = [
+  { id: "sqft", name: "sq ft" },
+  { id: "marla", name: "Marla" },
+];
+
+/** "1,250 sq ft", "5 marla", or both when a unit records both. */
+export function formatArea(unit: { area_sqft: number | null; area_marla: number | null }) {
+  const parts = [
+    unit.area_marla != null ? `${unit.area_marla.toLocaleString()} marla` : null,
+    unit.area_sqft != null ? `${unit.area_sqft.toLocaleString()} sq ft` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 /** How long a project carries its "New" marker after being added. */
 const NEW_FOR_DAYS = 30;
 

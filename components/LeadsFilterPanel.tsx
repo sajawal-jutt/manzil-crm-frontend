@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFilterProgress } from "@/components/list/FilterBar";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import { LEAD_STAGES } from "@/lib/leads";
 
@@ -52,6 +53,8 @@ function withAllOption(options: SelectOption[], label: string): SelectOption[] {
 type LeadsFilterPanelProps = {
   value: LeadFilters;
   onApply: (filters: LeadFilters) => void;
+  /** Applies a dropdown pick straight away, leaving the panel open. */
+  onPick: (filters: LeadFilters) => void;
   onClear: () => void;
   interests: SelectOption[];
   categories: SelectOption[];
@@ -63,6 +66,7 @@ type LeadsFilterPanelProps = {
 export function LeadsFilterPanel({
   value,
   onApply,
+  onPick,
   onClear,
   interests,
   categories,
@@ -71,9 +75,17 @@ export function LeadsFilterPanel({
   showAssignee,
 }: LeadsFilterPanelProps) {
   const [draft, setDraft] = useState(value);
+  const showProgress = useFilterProgress();
 
   function set(key: keyof LeadFilters, next: string) {
     setDraft((prev) => ({ ...prev, [key]: next }));
+  }
+
+  function pick(key: keyof LeadFilters, next: string) {
+    const updated = { ...draft, [key]: next };
+    setDraft(updated);
+    showProgress?.();
+    onPick(updated);
   }
 
   return (
@@ -81,7 +93,13 @@ export function LeadsFilterPanel({
     <div className="fixed inset-x-4 top-20 z-40 rounded-xl border border-border bg-sidebar p-4 shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+8px)] sm:z-20 sm:w-[420px]">
       <div className="flex items-center justify-between pb-3">
         <p className="text-xs font-bold uppercase tracking-[0.6px] text-muted">Filters</p>
-        <button type="button" onClick={onClear} className="text-xs font-medium text-muted underline">
+        <button
+          type="button"
+          onClick={() => {
+            showProgress?.();
+            onClear();
+          }}
+className="text-xs font-medium text-muted underline">
           Clear all
         </button>
       </div>
@@ -94,7 +112,7 @@ export function LeadsFilterPanel({
           <Select
             id="filter-stage"
             value={draft.stage}
-            onChange={(v) => set("stage", v)}
+            onChange={(v) => pick("stage", v)}
             options={STAGE_OPTIONS}
             placeholder="All stages"
           />
@@ -106,7 +124,7 @@ export function LeadsFilterPanel({
           <Select
             id="filter-temperature"
             value={draft.temperature}
-            onChange={(v) => set("temperature", v)}
+            onChange={(v) => pick("temperature", v)}
             options={TEMPERATURE_OPTIONS}
             placeholder="All"
           />
@@ -119,7 +137,7 @@ export function LeadsFilterPanel({
           <Select
             id="filter-category"
             value={draft.category_id}
-            onChange={(v) => set("category_id", v)}
+            onChange={(v) => pick("category_id", v)}
             options={withAllOption(categories, "All categories")}
             placeholder="All categories"
           />
@@ -131,7 +149,7 @@ export function LeadsFilterPanel({
           <Select
             id="filter-interest"
             value={draft.interest_id}
-            onChange={(v) => set("interest_id", v)}
+            onChange={(v) => pick("interest_id", v)}
             options={withAllOption(interests, "All interests")}
             placeholder="All interests"
           />
@@ -144,7 +162,7 @@ export function LeadsFilterPanel({
           <Select
             id="filter-source"
             value={draft.source_id}
-            onChange={(v) => set("source_id", v)}
+            onChange={(v) => pick("source_id", v)}
             options={withAllOption(sources, "All sources")}
             placeholder="All sources"
           />
@@ -157,7 +175,7 @@ export function LeadsFilterPanel({
             <Select
               id="filter-assignee"
               value={draft.assigned_to_id}
-              onChange={(v) => set("assigned_to_id", v)}
+              onChange={(v) => pick("assigned_to_id", v)}
               options={withAllOption(agents, "All agents")}
               placeholder="All agents"
             />
@@ -190,7 +208,10 @@ export function LeadsFilterPanel({
       <div className="flex justify-end pt-4">
         <button
           type="button"
-          onClick={() => onApply(draft)}
+          onClick={() => {
+            showProgress?.();
+            onApply(draft);
+          }}
           className="w-full rounded-xl bg-ink px-5 py-2 text-sm font-bold text-white sm:w-auto"
         >
           Apply filters

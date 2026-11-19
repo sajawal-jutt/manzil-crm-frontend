@@ -114,6 +114,26 @@ textarea {
   }
 }
 
+/* An indeterminate loading line: a short bar sliding across while a filtered list loads. */
+@keyframes loading-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+.loading-line {
+  animation: loading-slide 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-line {
+    animation: fade-in 0.8s ease-in-out infinite alternate;
+  }
+}
+
 .kanban-scroll {
   scrollbar-color: var(--muted) transparent;
   scrollbar-width: thin;

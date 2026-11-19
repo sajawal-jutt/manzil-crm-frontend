@@ -15,7 +15,7 @@ import {
   type Unit,
 } from "@/lib/api";
 import { UNIT_STATUSES } from "@/lib/inventory";
-import { LEAD_STAGES, leadStageLabel, needsPayment } from "@/lib/leads";
+import { leadStageLabel, needsPayment, pickableLeadStages } from "@/lib/leads";
 import { StagePaymentFields, emptyStagePayment, toStagePayment, type StagePaymentDraft } from "@/components/leads/StagePayment";
 import {
   NEXT_TASKS,
@@ -424,7 +424,7 @@ export function LogTaskModal({
                     setStage(next);
                     setPaymentDraft(emptyStagePayment(next));
                   }}
-                  options={LEAD_STAGES.map((entry) => ({ id: entry.id, name: entry.label }))}
+                  options={pickableLeadStages(targetStage).map((entry) => ({ id: entry.id, name: entry.label }))}
                 />
               </Field>
 

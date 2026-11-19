@@ -121,11 +121,11 @@ export function LeadFiltersBar({
       .catch(() => {});
   }, [canFilterStaff]);
 
-  function apply(next: LeadListFilters) {
+  function apply(next: LeadListFilters, keepPanelOpen = false) {
     const trimmed = { ...next, search: next.search.trim() };
     setApplied(trimmed);
     setDraft(trimmed);
-    setIsPanelOpen(false);
+    if (!keepPanelOpen) setIsPanelOpen(false);
     onApply(trimmed);
   }
 
@@ -234,6 +234,7 @@ export function LeadFiltersBar({
           <LeadsFilterPanel
             value={applied}
             onApply={(panel) => apply({ ...draft, ...panel })}
+            onPick={(panel) => apply({ ...draft, ...panel }, true)}
             onClear={() => apply({ ...draft, ...EMPTY_FILTERS })}
             interests={interests}
             categories={categories}

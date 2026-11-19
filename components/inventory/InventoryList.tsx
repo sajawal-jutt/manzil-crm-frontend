@@ -28,6 +28,7 @@ import { SpanCell } from "@/components/list/SpanCell";
 import {
   createUnit,
   deleteUnit,
+  getCategories,
   getPartnerProjects,
   getUnits,
   setUnitStarred,
@@ -37,7 +38,7 @@ import {
   type UnitStatus,
   type InventoryType,
 } from "@/lib/api";
-import { UNIT_STATUSES } from "@/lib/inventory";
+import { formatArea, UNIT_STATUSES } from "@/lib/inventory";
 import { useCan } from "@/lib/session";
 
 type Filters = { projectId: string; unitType: string; search: string };
@@ -83,6 +84,7 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
 
   const [projects, setProjects] = useState<SelectOption[]>([]);
   const [owners, setOwners] = useState<Record<string, { name: string | null; phone: string | null }>>({});
+  const [projectCategories, setProjectCategories] = useState<Record<string, string | null>>({});
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [isUnitFormOpen, setIsUnitFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -90,10 +92,14 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    getPartnerProjects({ limit: 500 })
-      .then((list) => {
+    Promise.all([getPartnerProjects({ limit: 500 }), getCategories().catch(() => [])])
+      .then(([list, categories]) => {
+        const categoryNames = Object.fromEntries(categories.map((c) => [c.id, c.name]));
         setProjects(list.map((p) => ({ id: p.id, name: p.project_name })));
         setOwners(Object.fromEntries(list.map((p) => [p.id, { name: p.owner_name ?? null, phone: p.owner_phone ?? null }])));
+        setProjectCategories(
+          Object.fromEntries(list.map((p) => [p.id, (p.category_id && categoryNames[p.category_id]) || null])),
+        );
       })
       .catch(() => {});
   }, []);
@@ -286,7 +292,7 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
                 <th scope="col" className={`${headCellClass} hidden w-[7%] lg:table-cell`}>Floor</th>
                 <th scope="col" className={`${headCellClass} hidden w-[5%] lg:table-cell`}>Beds</th>
                 <th scope="col" className={`${headCellClass} hidden w-[11%] text-right sm:table-cell`}>Price (PKR)</th>
-                <th scope="col" className={`${headCellClass} hidden w-[9%] pl-3 pr-6 text-right lg:table-cell`}>Area (sqft)</th>
+                <th scope="col" className={`${headCellClass} hidden w-[9%] pl-3 pr-6 text-right lg:table-cell`}>Area</th>
                 <th scope="col" className={`${headCellClass} w-[96px] lg:w-[13%]`}>Status</th>
                 <th scope="col" className="w-[40px] lg:w-[4%]" />
               </tr>
@@ -336,8 +342,8 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
                       <td className="hidden truncate pr-3 text-right sm:table-cell">
                         {unit.price != null ? unit.price.toLocaleString() : "-"}
                       </td>
-                      <td className="hidden pl-3 pr-6 text-right lg:table-cell">
-                        {unit.area_sqft != null ? unit.area_sqft.toLocaleString() : "-"}
+                      <td className="hidden truncate pl-3 pr-6 text-right lg:table-cell">
+                        {formatArea(unit) ?? "-"}
                       </td>
                       <td className="pr-3">
                         <p className="truncate">
@@ -411,6 +417,7 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
           defaultProjectId={filters.projectId}
           projects={projects}
           owners={canManage ? owners : undefined}
+          projectCategories={projectCategories}
           inventoryType={inventoryType}
           needsApproval={!canApprove}
           unitTypes={unitTypes}

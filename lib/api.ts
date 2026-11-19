@@ -165,7 +165,34 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+let requestsInFlight = 0;
+const inFlightListeners = new Set<() => void>();
+
+function setRequestsInFlight(next: number) {
+  requestsInFlight = next;
+  inFlightListeners.forEach((listener) => listener());
+}
+
+/** How many API requests are waiting on the network, for loading indicators. */
+export const getRequestsInFlight = () => requestsInFlight;
+
+export function subscribeRequestsInFlight(listener: () => void) {
+  inFlightListeners.add(listener);
+  return () => {
+    inFlightListeners.delete(listener);
+  };
+}
+
 async function requestJson<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
+  setRequestsInFlight(requestsInFlight + 1);
+  try {
+    return await sendRequest<T>(path, token, init);
+  } finally {
+    setRequestsInFlight(requestsInFlight - 1);
+  }
+}
+
+async function sendRequest<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
@@ -1002,6 +1029,7 @@ export type Unit = {
   beds: number | null;
   price: number | null;
   area_sqft: number | null;
+  area_marla: number | null;
   status: UnitStatus;
   inventory_type: InventoryType;
   /** An agent's unit is `pending` until an admin approves it for sale. */
@@ -1009,6 +1037,8 @@ export type Unit = {
   is_starred: boolean;
   /** The lead that has paid towards this unit; null while it's available. */
   lead: { id: string; lead_no: number; client_name: string } | null;
+  /** The client selling this unit, when it was listed from their lead. Sent to inventory managers only. */
+  seller: { lead_id: string; lead_no: number; client_name: string; client_number: string } | null;
   created_at: string;
   updated_at: string;
 };
@@ -1047,7 +1077,8 @@ export type UnitInput = {
   floor?: string;
   beds?: number;
   price?: number;
-  area_sqft?: number;
+  area_sqft?: number | null;
+  area_marla?: number | null;
   status?: UnitStatus;
 };
 
@@ -1056,6 +1087,10 @@ export const getUnits = (params: UnitsQuery = {}) =>
 
 export const createUnit = (dto: UnitInput) =>
   apiFetch<Unit>("/units", { method: "POST", body: JSON.stringify(dto) });
+
+/** Lists a selling client's property in the direct inventory and closes their lead as listed. */
+export const createUnitFromLead = (leadId: string, dto: UnitInput) =>
+  apiFetch<Unit>(`/units/from-lead/${leadId}`, { method: "POST", body: JSON.stringify(dto) });
 
 export const updateUnit = (id: string, dto: Partial<UnitInput>) =>
   apiFetch<Unit>(`/units/${id}`, { method: "PATCH", body: JSON.stringify(dto) });
@@ -1627,7 +1662,7 @@ export const setFollowUpCompleted = (id: string, completed: boolean) =>
 
 // ── Customers ─────────────────────────────────────────────────────────────────
 
-export type CustomerStage = "inquiry" | "prospect" | "mature" | "pre_closure" | "sold" | "lost";
+export type CustomerStage = "inquiry" | "prospect" | "mature" | "pre_closure" | "sold" | "lost" | "listed";
 
 export type Gender = "male" | "female";
 
@@ -2095,6 +2130,7 @@ export type SharedUnit = {
     floor: string | null;
     beds: number | null;
     area_sqft: number | null;
+    area_marla: number | null;
     price: number | null;
     features: string | null;
   };
