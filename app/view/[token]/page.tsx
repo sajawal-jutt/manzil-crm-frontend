@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiAssetUrl, getSharedUnit, type MediaItem, type SharedUnit } from "@/lib/api";
+import { formatArea } from "@/lib/inventory";
 import { formatMoney } from "@/lib/money";
 
 const headingStyle = { fontVariationSettings: '"SOFT" 0, "WONK" 1' };
@@ -96,7 +97,7 @@ export default function SharedUnitPage() {
   const facts = [
     unit.unit_type,
     unit.beds ? `${unit.beds} bed` : null,
-    unit.area_sqft ? `${unit.area_sqft.toLocaleString()} sq ft` : null,
+    formatArea(unit),
     unit.floor,
   ].filter(Boolean) as string[];
   const validUntil = new Date(data.expires_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });

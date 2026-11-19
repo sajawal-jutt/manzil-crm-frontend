@@ -1,44 +1,110 @@
 "use client";
 
-import { Children, Fragment, isValidElement, useEffect, useRef, useState } from "react";
+import {
+  Children,
+  createContext,
+  Fragment,
+  isValidElement,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ChangeEvent, InputHTMLAttributes, ReactNode } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { getRequestsInFlight, subscribeRequestsInFlight } from "@/lib/api";
 import { Listbox, type ListboxOption } from "@/components/ui/Listbox";
 
 // The vertical padding and matching negative margin grow the hit area without moving the layout.
 const controlClass = "-my-2 min-w-0 bg-transparent py-2 text-xs leading-[1.4] focus:outline-none";
 
+const AutoSearchContext = createContext<{ requestSearch: () => void; showProgress: () => void } | null>(null);
+
+/** Shows the bar's loading line until the list's next request comes back. */
+export function useFilterProgress() {
+  return useContext(AutoSearchContext)?.showProgress;
+}
+
 export function FilterBar({ children, onSearch }: { children: ReactNode; onSearch: () => void }) {
   // Below lg the fields fold away behind a toggle, so the list isn't pushed off the first screen.
   const [isOpen, setIsOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  // A dropdown pick searches straight away. It waits a render so onSearch sees the draft that pick just set.
+  const [searchRequests, setSearchRequests] = useState(0);
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  });
+  useEffect(() => {
+    if (searchRequests > 0) onSearchRef.current();
+  }, [searchRequests]);
+
+  useEffect(() => {
+    if (!isSearching) return;
+    let sawRequest = getRequestsInFlight() > 0;
+    const unsubscribe = subscribeRequestsInFlight(() => {
+      if (getRequestsInFlight() > 0) sawRequest = true;
+      else if (sawRequest) setIsSearching(false);
+    });
+    // A cached response never reaches the network, so stop waiting if no request starts.
+    const noRequest = setTimeout(() => !sawRequest && setIsSearching(false), 800);
+    const giveUp = setTimeout(() => setIsSearching(false), 20_000);
+    return () => {
+      unsubscribe();
+      clearTimeout(noRequest);
+      clearTimeout(giveUp);
+    };
+  }, [isSearching]);
+
+  const context = useMemo(
+    () => ({
+      requestSearch: () => {
+        setIsSearching(true);
+        setSearchRequests((n) => n + 1);
+      },
+      showProgress: () => setIsSearching(true),
+    }),
+    [],
+  );
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        setIsOpen(false);
-        onSearch();
-      }}
-      className="flex flex-wrap items-end gap-x-6 gap-y-4 bg-cream px-4 py-4 sm:px-8 lg:py-6"
-    >
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        aria-expanded={isOpen}
-        className="flex h-9 items-center gap-1.5 text-xs leading-[1.4] text-primary lg:hidden"
+    <AutoSearchContext.Provider value={context}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setIsOpen(false);
+          setIsSearching(true);
+          onSearch();
+        }}
+        aria-busy={isSearching}
+        className="relative flex flex-wrap items-end gap-x-6 gap-y-4 bg-cream px-4 py-4 sm:px-8 lg:py-6"
       >
-        <Icon name="search" className="size-4" />
-        Filters
-        <Icon name="chevron-down" className={`size-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </button>
-      <div className={`${isOpen ? "flex" : "hidden"} order-last w-full flex-col gap-4 lg:contents`}>{children}</div>
-      <button
-        type="submit"
-        className="ml-auto flex h-9 shrink-0 items-center gap-[7px] rounded-[4px] bg-primary px-4 text-xs leading-[1.4] text-white transition-colors hover:bg-primary/90"
-      >
-        <Icon name="search" className="size-4" />
-        Search
-      </button>
-    </form>
+        {isSearching && (
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden">
+            <span className="loading-line block h-full w-1/4 bg-primary" />
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          aria-expanded={isOpen}
+          className="flex h-9 items-center gap-1.5 text-xs leading-[1.4] text-primary lg:hidden"
+        >
+          <Icon name="search" className="size-4" />
+          Filters
+          <Icon name="chevron-down" className={`size-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </button>
+        <div className={`${isOpen ? "flex" : "hidden"} order-last w-full flex-col gap-4 lg:contents`}>{children}</div>
+        <button
+          type="submit"
+          className="ml-auto flex h-9 shrink-0 items-center gap-[7px] rounded-[4px] bg-primary px-4 text-xs leading-[1.4] text-white transition-colors hover:bg-primary/90"
+        >
+          <Icon name="search" className="size-4" />
+          Search
+        </button>
+      </form>
+    </AutoSearchContext.Provider>
   );
 }
 
@@ -113,10 +179,14 @@ export function FilterSelect({
 }) {
   const options = [...(placeholder !== undefined ? [{ id: "", name: placeholder }] : []), ...toOptions(children)];
   const selected = options.find((option) => option.id === value);
+  const requestSearch = useContext(AutoSearchContext)?.requestSearch;
   return (
     <Listbox
       value={value}
-      onChange={(next) => onChange({ target: { value: next } } as ChangeEvent<HTMLSelectElement>)}
+      onChange={(next) => {
+        onChange({ target: { value: next } } as ChangeEvent<HTMLSelectElement>);
+        requestSearch?.();
+      }}
       options={options}
       label={ariaLabel}
       className={`${controlClass} flex cursor-pointer items-center gap-2 text-left ${className} ${

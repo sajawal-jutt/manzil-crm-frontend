@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, type SubmitEvent } from "react";
+import { ChevronDownIcon } from "@/components/icons/DashboardIcons";
+import { Listbox } from "@/components/ui/Listbox";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import type { InventoryType, Unit, UnitInput, UnitStatus } from "@/lib/api";
-import { UNIT_STATUS_OPTIONS } from "@/lib/inventory";
+import { AREA_UNIT_OPTIONS, UNIT_STATUS_OPTIONS, type AreaUnit } from "@/lib/inventory";
 import { useCan } from "@/lib/session";
 import { EMPTY_MEDIA_DRAFT, MediaField, type MediaDraft } from "@/components/inventory/MediaField";
 
@@ -17,11 +19,15 @@ type UnitFormModalProps = {
   projects: SelectOption[];
   /** Project owners by project id. Passed for admins only. */
   owners?: Record<string, { name: string | null; phone: string | null }>;
+  /** Each project's category name (Residential, Commercial…), by project id. */
+  projectCategories: Record<string, string | null>;
   /** Which inventory a new unit joins. */
   inventoryType: InventoryType;
   /** A unit added without inventory.approve waits for someone who has it. */
   needsApproval: boolean;
   unitTypes: string[];
+  /** Set when a selling client's property is listed from their lead. */
+  seller?: { name: string; phone: string };
   isSaving: boolean;
   error: string | null;
   onClose: () => void;
@@ -33,9 +39,11 @@ export function UnitFormModal({
   defaultProjectId,
   projects,
   owners,
+  projectCategories,
   inventoryType,
   needsApproval,
   unitTypes,
+  seller,
   isSaving,
   error,
   onClose,
@@ -48,7 +56,11 @@ export function UnitFormModal({
   const [floor, setFloor] = useState(initial?.floor ?? "");
   const [beds, setBeds] = useState(initial?.beds != null ? String(initial.beds) : "");
   const [price, setPrice] = useState(initial?.price != null ? String(initial.price) : "");
-  const [area, setArea] = useState(initial?.area_sqft != null ? String(initial.area_sqft) : "");
+  const [areaUnit, setAreaUnit] = useState<AreaUnit>(
+    initial?.area_marla != null && initial.area_sqft == null ? "marla" : "sqft",
+  );
+  const initialArea = areaUnit === "marla" ? initial?.area_marla : initial?.area_sqft;
+  const [area, setArea] = useState(initialArea != null ? String(initialArea) : "");
   const [status, setStatus] = useState<UnitStatus>(initial?.status ?? "available");
   const [localError, setLocalError] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaDraft>(EMPTY_MEDIA_DRAFT);
@@ -68,7 +80,9 @@ export function UnitFormModal({
       floor,
       beds: beds ? Number(beds) : undefined,
       price: price ? Number(price) : undefined,
-      area_sqft: area ? Number(area) : undefined,
+      // Only the chosen unit is kept, so switching sq ft ↔ marla clears the other.
+      area_sqft: areaUnit === "sqft" && area ? Number(area) : null,
+      area_marla: areaUnit === "marla" && area ? Number(area) : null,
       status,
     }, media);
   }
@@ -84,7 +98,7 @@ export function UnitFormModal({
             className="font-serif text-2xl font-bold text-ink"
             style={{ fontVariationSettings: '"SOFT" 0, "WONK" 1' }}
           >
-            {initial ? "Edit unit" : "New unit"}
+            {initial ? "Edit unit" : seller ? "List property for sale" : "New unit"}
           </h2>
           <button
             type="button"
@@ -97,6 +111,14 @@ export function UnitFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-5 sm:px-6">
+          {seller && (
+            <p className="rounded-xl bg-white/70 px-4 py-3 text-sm text-ink">
+              Seller: <span className="font-bold">{seller.name}</span> · {seller.phone}
+              <span className="mt-1 block text-xs text-muted">
+                The property joins Direct inventory and this lead closes as Listed for sale.
+              </span>
+            </p>
+          )}
           {!initial && needsApproval && (
             <p className="rounded-xl bg-warm/15 px-4 py-3 text-sm text-ink">
               A manager approves this unit before it is listed for sale. You can follow it in Management.
@@ -115,6 +137,11 @@ export function UnitFormModal({
                 options={projects}
                 placeholder="Select project"
               />
+              {projectId && (
+                <p className="text-xs text-muted">
+                  Category: <span className="text-ink">{projectCategories[projectId] || "not set"}</span>
+                </p>
+              )}
               {owners && projectId && (
                 <p className="text-xs text-muted">
                   Owner: {owners[projectId]?.name || "not recorded"}
@@ -193,18 +220,36 @@ export function UnitFormModal({
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="unit-area" className="text-sm text-muted">
-                Area (sq ft)
+                Area
               </label>
-              <input
-                id="unit-area"
-                type="number"
-                min="0"
-                step="any"
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                placeholder="0"
-                className={inputClass}
-              />
+              <div className="flex w-full min-w-0 items-center rounded-xl border border-border bg-white">
+                <input
+                  id="unit-area"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  placeholder="0"
+                  className="w-full min-w-0 flex-1 bg-transparent py-2 pl-4 pr-1 text-sm text-ink placeholder:text-placeholder focus:outline-none"
+                />
+                <Listbox
+                  label="Area unit"
+                  value={areaUnit}
+                  onChange={(v) => setAreaUnit(v as AreaUnit)}
+                  options={AREA_UNIT_OPTIONS}
+                  className="flex shrink-0 items-center gap-1.5 self-stretch pl-2 pr-4 text-sm text-ink focus:outline-none"
+                >
+                  {(isOpen) => (
+                    <>
+                      {AREA_UNIT_OPTIONS.find((option) => option.id === areaUnit)?.name}
+                      <ChevronDownIcon
+                        className={`size-2.5 shrink-0 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      />
+                    </>
+                  )}
+                </Listbox>
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="unit-beds" className="text-sm text-muted">

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TrashIcon } from "@/components/icons/DashboardIcons";
 import { getMedia, type MediaItem, type Unit } from "@/lib/api";
-import { UNIT_STATUSES } from "@/lib/inventory";
+import { formatArea, UNIT_STATUSES } from "@/lib/inventory";
 import { formatLakhCrore } from "@/lib/money";
 
 type UnitDetailModalProps = {
@@ -82,7 +82,7 @@ export function UnitDetailModal({ unit, canManage, onClose, onEdit, onDelete }: 
             <Fact label="Type" value={unit.unit_type || "—"} />
             <Fact label="Beds" value={unit.beds != null ? String(unit.beds) : "—"} />
             <Fact label="Floor" value={unit.floor || "—"} />
-            <Fact label="Area" value={unit.area_sqft != null ? `${unit.area_sqft.toLocaleString()} sqft` : "—"} />
+            <Fact label="Area" value={formatArea(unit) ?? "—"} />
           </div>
 
           {unit.features && (
@@ -90,6 +90,14 @@ export function UnitDetailModal({ unit, canManage, onClose, onEdit, onDelete }: 
               <p className="text-[11px] text-muted">Features</p>
               <p className="mt-1 text-sm leading-relaxed text-ink">{unit.features}</p>
             </div>
+          )}
+
+          {unit.seller && (
+            <p className="text-sm text-ink">
+              <span className="text-muted">Seller </span>
+              {unit.seller.client_name} · {unit.seller.client_number}
+              <span className="text-muted"> · Lead {unit.seller.lead_no}</span>
+            </p>
           )}
 
           {unit.lead && (

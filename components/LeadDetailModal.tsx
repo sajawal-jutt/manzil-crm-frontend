@@ -4,12 +4,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import { PhoneIcon, TrashIcon } from "@/components/icons/DashboardIcons";
+import { ListPropertyModal } from "@/components/inventory/ListPropertyModal";
 import {
   createFollowUp,
   deleteLead,
   getAgents,
   getCategories,
   getInterests,
+  getLead,
   setFollowUpCompleted,
   updateLead,
   getFollowUps,
@@ -20,13 +22,12 @@ import {
   type Lead,
   type LeadTemperature,
 } from "@/lib/api";
-import { LEAD_STAGES, needsPayment } from "@/lib/leads";
+import { needsPayment, pickableLeadStages } from "@/lib/leads";
 import { formatLakhCrore } from "@/lib/money";
 import { useCan } from "@/lib/session";
 import { StagePaymentFields, emptyStagePayment, toStagePayment, type StagePaymentDraft } from "@/components/leads/StagePayment";
 import { PaymentError } from "@/components/leads/PaymentError";
 
-const STAGES = LEAD_STAGES;
 
 const TEMP_STYLES: Record<LeadTemperature, string> = {
   HOT: "border-hot text-hot",
@@ -167,6 +168,7 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isListing, setIsListing] = useState(false);
 
   const [newText, setNewText] = useState("");
   const [newDate, setNewDate] = useState("");
@@ -251,6 +253,19 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
     }
   }
 
+  async function handleListed() {
+    if (!currentLead) return;
+    setIsListing(false);
+    onChanged();
+    try {
+      const fresh = await getLead(currentLead.id);
+      setCurrentLead(fresh);
+      setDraftStage(fresh.stage);
+    } catch {
+      setDraftStage("listed");
+    }
+  }
+
   async function handleToggleFollowUp(followUp: FollowUp) {
     setFollowUps((prev) => prev.map((f) => (f.id === followUp.id ? { ...f, completed: !f.completed } : f)));
     try {
@@ -299,6 +314,7 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
   const categoryName = currentLead.category?.name ?? "—";
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-sidebar shadow-lg"
@@ -362,7 +378,7 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
                   setDraftStage(next);
                   setPaymentDraft(emptyStagePayment(next));
                 }}
-                options={STAGES.map((s) => ({ id: s.id, name: s.label }))}
+                options={pickableLeadStages(currentLead.stage).map((s) => ({ id: s.id, name: s.label }))}
               />
             </Field>
             <Field label="Interest" htmlFor="interest">
@@ -438,6 +454,28 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
             <p className="text-sm text-muted">Budget</p>
             <p className="text-base font-bold text-ink">{formatBudget(currentLead.budget)}</p>
           </div>
+
+          {currentLead.stage !== "sold" && currentLead.stage !== "lost" && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-white/60 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-ink">
+                  {currentLead.stage === "listed" ? "Property listed for sale" : "Client wants to sell?"}
+                </p>
+                <p className="text-xs text-muted">
+                  {currentLead.stage === "listed"
+                    ? "Their property is in Direct inventory. Add another if they have more."
+                    : "Add their property to Direct inventory. This lead then closes as Listed."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsListing(true)}
+                className="shrink-0 rounded-xl border border-border bg-white px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-dash-bg"
+              >
+                {currentLead.stage === "listed" ? "+ List another" : "List property"}
+              </button>
+            </div>
+          )}
 
           {currentLead.chatbot_matches && <ChatbotMatches leadId={currentLead.id} matches={currentLead.chatbot_matches} />}
 
@@ -543,5 +581,9 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
         )}
       </div>
     </div>
+    {isListing && (
+      <ListPropertyModal lead={currentLead} onClose={() => setIsListing(false)} onListed={() => void handleListed()} />
+    )}
+    </>
   );
 }

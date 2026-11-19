@@ -1,6 +1,6 @@
 export type PipelineStageId = "inquiry" | "prospect" | "mature" | "pre_closure" | "sold";
 
-export type LeadStageId = PipelineStageId | "lost";
+export type LeadStageId = PipelineStageId | "lost" | "listed";
 
 /** The pipeline, in board order. `headingClass` tints the two stages the design calls out. */
 export const PIPELINE_STAGES: { id: PipelineStageId; label: string; headingClass: string }[] = [
@@ -15,7 +15,13 @@ export const PIPELINE_STAGES: { id: PipelineStageId; label: string; headingClass
 export const LEAD_STAGES: { id: LeadStageId; label: string }[] = [
   ...PIPELINE_STAGES.map(({ id, label }) => ({ id, label })),
   { id: "lost", label: "Lost" },
+  { id: "listed", label: "Listed for sale" },
 ];
+
+/** Stages a person can pick. Listed is only reached by listing the seller's property, so it shows only once held. */
+export function pickableLeadStages(current: string) {
+  return LEAD_STAGES.filter((entry) => entry.id !== "listed" || current === "listed");
+}
 
 const PAYMENT_STAGES = ["pre_closure", "sold"];
 
