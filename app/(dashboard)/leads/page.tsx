@@ -276,7 +276,7 @@ function LeadsDirectory() {
 
               {!isLoading &&
                 leads.map((lead) => {
-                  const interestLine = [lead.interest?.name, lead.category?.name].filter(Boolean).join(" · ");
+                  const interestLine = [lead.interest?.name, lead.category?.name, lead.property_type].filter(Boolean).join(" · ");
                   const agentName = lead.assigned_to
                     ? `${lead.assigned_to.first_name} ${lead.assigned_to.last_name}`
                     : "Unassigned";

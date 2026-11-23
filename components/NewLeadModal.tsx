@@ -10,8 +10,10 @@ import {
   getAgents,
   getCategories,
   getInterests,
+  getProjectOptions,
   getSources,
   type Customer,
+  type ProjectOption,
 } from "@/lib/api";
 import { useCan } from "@/lib/session";
 
@@ -33,6 +35,17 @@ const TEMP_STYLES: Record<Temperature, string> = {
   COLD: "border-cold text-cold",
 };
 
+// Categories are company-defined, so the type list is matched on the category's name.
+function propertyTypesFor(categoryName: string | undefined): Option[] {
+  const name = categoryName?.toLowerCase() ?? "";
+  const types = name.includes("residential")
+    ? ["Plot", "House", "Apartment"]
+    : name.includes("commercial")
+      ? ["Office", "Plot", "Hotel Apartment", "Shop"]
+      : [];
+  return types.map((type) => ({ id: type, name: type }));
+}
+
 const inputClass =
   "w-full rounded-xl border border-border bg-white px-4 py-2 text-sm text-ink placeholder:text-placeholder focus:outline-none";
 
@@ -42,6 +55,8 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
   const [customerAgents, setCustomerAgents] = useState("");
   const [interestId, setInterestId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [propertyType, setPropertyType] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [city, setCity] = useState(initialCustomer?.city ?? "");
   const [area, setArea] = useState("");
   const [budget, setBudget] = useState("");
@@ -52,11 +67,17 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
 
   const [interests, setInterests] = useState<Option[]>([]);
   const [categories, setCategories] = useState<Option[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [sources, setSources] = useState<Option[]>([]);
   const [agents, setAgents] = useState<Option[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
 
   const assigneeOptions: Option[] = [{ id: UNASSIGNED_ID, name: "Unassigned" }, ...agents];
+  const propertyTypes = propertyTypesFor(categories.find((category) => category.id === categoryId)?.name);
+  // Projects with no category stay selectable, otherwise they could never be picked here.
+  const projectOptions: Option[] = projects
+    .filter((project) => !categoryId || !project.category_id || project.category_id === categoryId)
+    .map((project) => ({ id: project.id, name: project.project_name }));
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -68,15 +89,17 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
       setIsLoadingOptions(true);
       setError(null);
       try {
-        const [interestList, categoryList, sourceList, agentList] = await Promise.all([
+        const [interestList, categoryList, projectList, sourceList, agentList] = await Promise.all([
           getInterests(),
           getCategories(),
+          getProjectOptions(),
           getSources(),
           // Without leads.assign the lead is the creator's own, so there's no assignee to pick.
           canAssign ? getAgents() : Promise.resolve([]),
         ]);
         setInterests(interestList);
         setCategories(categoryList);
+        setProjects(projectList);
         setSources(sourceList);
         setAgents(agentList.map((agent) => ({ id: String(agent.id), name: `${agent.first_name} ${agent.last_name}` })));
       } catch (err) {
@@ -95,6 +118,8 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
     setCustomerAgents("");
     setInterestId("");
     setCategoryId("");
+    setPropertyType("");
+    setProjectId("");
     setCity("");
     setArea("");
     setBudget("");
@@ -102,6 +127,12 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
     setSubSource("");
     setTemperature("WARM");
     setAssignTo(UNASSIGNED_ID);
+  }
+
+  function handleCategoryChange(next: string) {
+    setCategoryId(next);
+    setPropertyType("");
+    setProjectId("");
   }
 
   function handleCustomerChange(next: Customer | null) {
@@ -123,6 +154,8 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
         customer_id: customer.id,
         interest_id: interestId || undefined,
         category_id: categoryId || undefined,
+        property_type: propertyType || undefined,
+        project_id: projectId || undefined,
         city: city || undefined,
         area: area || undefined,
         budget: budget ? Number(budget) : undefined,
@@ -151,7 +184,7 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={handleClose}>
       <div
-        className="w-full max-w-xl rounded-xl bg-sidebar shadow-lg"
+        className="max-h-full w-full max-w-xl overflow-y-auto rounded-xl bg-sidebar shadow-lg"
         role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
       >
         {isSuccess ? (
@@ -229,9 +262,38 @@ export function NewLeadModal({ isOpen, onClose, initialCustomer }: NewLeadModalP
               <Select
                 id="category"
                 value={categoryId}
-                onChange={setCategoryId}
+                onChange={handleCategoryChange}
                 options={categories}
                 placeholder={isLoadingOptions ? "Loading..." : "Select category"}
+              />
+            </div>
+          </div>
+
+          <div className={`grid gap-4 ${propertyTypes.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+            {propertyTypes.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="property-type" className="text-sm text-muted">
+                  Property type
+                </label>
+                <Select
+                  id="property-type"
+                  value={propertyType}
+                  onChange={setPropertyType}
+                  options={propertyTypes}
+                  placeholder="Select type"
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="project" className="text-sm text-muted">
+                Project
+              </label>
+              <Select
+                id="project"
+                value={projectId}
+                onChange={setProjectId}
+                options={projectOptions}
+                placeholder={isLoadingOptions ? "Loading..." : "Select project"}
               />
             </div>
           </div>

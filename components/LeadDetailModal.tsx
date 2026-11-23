@@ -418,6 +418,14 @@ export function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalPro
                 <p className={inputClass}>{categoryName}</p>
               )}
             </Field>
+            <Field label="Property type" htmlFor="property-type">
+              <p id="property-type" className={inputClass}>
+                {draftCategoryId === (currentLead.category_id ?? "") ? currentLead.property_type ?? "—" : "—"}
+              </p>
+            </Field>
+            <Field label="Project" htmlFor="project">
+              <p id="project" className={inputClass}>{currentLead.project?.name ?? "—"}</p>
+            </Field>
             <Field label="Assigned to" htmlFor="assigned-to">
               {canAssign ? (
                 <Select

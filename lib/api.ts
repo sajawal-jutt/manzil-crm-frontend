@@ -467,6 +467,7 @@ export type Lead = {
   interest: TaxonomyRef | null;
   category_id: string | null;
   category: TaxonomyRef | null;
+  property_type: string | null;
   city: string | null;
   area: string | null;
   budget: number | null;
@@ -580,6 +581,8 @@ export type CreateLeadInput = {
   customer_id: string;
   interest_id?: string;
   category_id?: string;
+  property_type?: string;
+  project_id?: string;
   city?: string;
   area?: string;
   budget?: number;
@@ -993,7 +996,7 @@ export type PartnerProjectInput = {
 export const getPartnerProjects = (params: InventoryQuery = {}) =>
   apiFetch<PartnerProject[]>(`/partner-projects${buildQueryString(params)}`);
 
-export type ProjectOption = { id: string; project_name: string };
+export type ProjectOption = { id: string; project_name: string; category_id: string | null };
 
 /** Shared with the normal request cache, so project changes also refresh dropdown options. */
 export const getProjectOptions = () => apiFetch<ProjectOption[]>("/partner-projects/options");
