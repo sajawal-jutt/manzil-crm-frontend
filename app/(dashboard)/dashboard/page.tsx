@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, ViewTransition } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, ViewTransition } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getPerformance, type Funnel, type FunnelStep, type Performance } from "@/lib/api";
@@ -76,14 +76,72 @@ function todosHref(tab: TaskTab, taskType: string, date: string) {
   return `/today?${due}=${date}${type}`;
 }
 
+const HINT_WIDTH = 220;
+const HINT_MAX_HEIGHT = 72;
+
+// A native title never appears on touch screens, so the hint opens on tap as well as hover.
 function Hint({ text }: { text: string }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState<CSSProperties | null>(null);
+
+  useEffect(() => {
+    if (!position) return;
+    const close = () => setPosition(null);
+    function handlePointer(e: PointerEvent) {
+      if (!buttonRef.current?.contains(e.target as Node)) close();
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
+    document.addEventListener("pointerdown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [position]);
+
+  function open() {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const centered = rect.left + rect.width / 2 - HINT_WIDTH / 2;
+    const left = Math.max(8, Math.min(centered, window.innerWidth - HINT_WIDTH - 8));
+    const opensUp = rect.bottom + 6 + HINT_MAX_HEIGHT > window.innerHeight;
+    setPosition(
+      opensUp
+        ? { left, width: HINT_WIDTH, bottom: window.innerHeight - rect.top + 6 }
+        : { left, width: HINT_WIDTH, top: rect.bottom + 6 },
+    );
+  }
+
   return (
-    <span
-      title={text}
-      className="flex size-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-muted text-[11px] font-bold leading-none text-white"
-    >
-      i
-    </span>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={text}
+        aria-expanded={position !== null}
+        onClick={() => (position ? setPosition(null) : open())}
+        onPointerEnter={(e) => e.pointerType === "mouse" && open()}
+        onPointerLeave={(e) => e.pointerType === "mouse" && setPosition(null)}
+        className="relative flex size-3.5 shrink-0 cursor-help touch-manipulation items-center justify-center rounded-full bg-muted text-[11px] font-bold leading-none text-white after:absolute after:-inset-3"
+      >
+        i
+      </button>
+      {position && (
+        <span
+          role="tooltip"
+          style={position}
+          className="fixed z-[60] rounded-lg bg-ink px-3 py-2 text-xs font-normal leading-[1.4] text-white shadow-lg"
+        >
+          {text}
+        </span>
+      )}
+    </>
   );
 }
 
