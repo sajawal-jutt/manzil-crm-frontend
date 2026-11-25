@@ -42,6 +42,7 @@ const TABS: { id: LeadTab; label: string }[] = [
   { id: "all", label: "All" },
   { id: "new", label: "New" },
   { id: "favourites", label: "Favourites" },
+  { id: "cold", label: "Cold" },
 ];
 
 const COLUMN_COUNT = 9;

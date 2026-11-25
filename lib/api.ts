@@ -428,7 +428,7 @@ export type TaxonomyRef = { id: string; name: string };
 
 export type LeadTemperature = "HOT" | "WARM" | "COLD";
 
-export type LeadTab = "all" | "new" | "favourites";
+export type LeadTab = "all" | "new" | "favourites" | "cold";
 
 export type DueWindow = "overdue" | "today" | "tomorrow" | "week";
 
