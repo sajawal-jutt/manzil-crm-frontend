@@ -21,7 +21,7 @@ import {
   type PipelineResponse,
 } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
-import { PIPELINE_STAGES } from "@/lib/leads";
+import { PIPELINE_COLUMNS } from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
 import { useScope } from "@/lib/session";
 import { formatClock } from "@/lib/time";
@@ -119,7 +119,7 @@ export default function PipelinePage() {
         ["Stage", "Lead", "Client", "Project", "Value (PKR)", "Allocated to"],
         ...res.stages.flatMap((stage) =>
           stage.leads.map((lead) => [
-            PIPELINE_STAGES.find((meta) => meta.id === stage.id)?.label ?? stage.id,
+            PIPELINE_COLUMNS.find((meta) => meta.id === stage.id)?.label ?? stage.id,
             String(lead.lead_no),
             lead.client_name,
             lead.project?.name ?? "",
@@ -247,7 +247,7 @@ export default function PipelinePage() {
                 </tr>
               </thead>
               <tbody>
-                {PIPELINE_STAGES.map((meta) => {
+                {PIPELINE_COLUMNS.map((meta) => {
                   const stage = pipeline?.stages.find((entry) => entry.id === meta.id);
                   return (
                     <tr key={meta.id} className={`${rowClass} !h-[62px]`}>

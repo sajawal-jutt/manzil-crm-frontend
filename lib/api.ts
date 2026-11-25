@@ -543,7 +543,7 @@ export type PipelineLead = Lead & {
 };
 
 export type PipelineStage = {
-  id: "inquiry" | "prospect" | "mature" | "pre_closure" | "sold";
+  id: "inquiry" | "prospect" | "mature" | "pre_closure" | "sold" | "cold";
   count: number;
   total: number;
   /** The first `per_stage` deals, not all `count` of them. */
@@ -1786,9 +1786,6 @@ export const setCustomerStarred = (id: string, isStarred: boolean) =>
     method: "PATCH",
     body: JSON.stringify({ is_starred: isStarred }),
   });
-
-export const deleteCustomer = (id: string) =>
-  apiFetch<{ message: string }>(`/customers/${id}`, { method: "DELETE" });
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 

@@ -22,12 +22,25 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { StagePaymentModal } from "@/components/leads/StagePayment";
 import { updateLead, type PipelineLead, type PipelineStage, type StagePayment } from "@/lib/api";
 import { whatsappUrl } from "@/lib/customers";
-import { PIPELINE_STAGES, needsPayment, type PipelineStageId } from "@/lib/leads";
+import {
+  PIPELINE_COLUMNS,
+  PIPELINE_STAGES,
+  needsPayment,
+  pipelineColumnOf,
+  type PipelineColumnId,
+  type PipelineStageId,
+} from "@/lib/leads";
 import { formatMoney } from "@/lib/money";
 import { taskLabel } from "@/lib/tasks";
 import { formatClock } from "@/lib/time";
 
-type StageMeta = (typeof PIPELINE_STAGES)[number];
+type StageMeta = (typeof PIPELINE_COLUMNS)[number];
+
+/** The lead as it reads once dropped in `column`: Cold only cools it, and a stage column warms a cold lead up. */
+function placeIn(lead: PipelineLead, column: PipelineColumnId): PipelineLead {
+  if (column === "cold") return { ...lead, temperature: "COLD" };
+  return { ...lead, stage: column, temperature: lead.temperature === "COLD" ? "WARM" : lead.temperature };
+}
 
 function shortDate(date: Date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
@@ -89,7 +102,7 @@ function SortableDealCard({
     disabled: !canDrag,
   });
   const stageIndex = PIPELINE_STAGES.findIndex((stage) => stage.id === lead.stage);
-  const nextStage = PIPELINE_STAGES[stageIndex + 1];
+  const nextStage = pipelineColumnOf(lead) === "cold" ? undefined : PIPELINE_STAGES[stageIndex + 1];
 
   return (
     <div
@@ -211,7 +224,7 @@ export function PipelineBoard({
   onError,
 }: PipelineBoardProps) {
   const [board, setBoard] = useState<PipelineLead[]>(() => stages.flatMap((stage) => stage.leads));
-  const [pendingMove, setPendingMove] = useState<{ lead: PipelineLead; stage: PipelineStageId; from: string } | null>(null);
+  const [pendingMove, setPendingMove] = useState<{ lead: PipelineLead; stage: PipelineStageId } | null>(null);
   const [activeLead, setActiveLead] = useState<PipelineLead | null>(null);
   // Touch needs press-and-hold: with a distance trigger the browser claims the swipe as a scroll
   // and cancels the gesture, so cards never pick up on a phone.
@@ -227,28 +240,39 @@ export function PipelineBoard({
     setBoard(stages.flatMap((stage) => stage.leads));
   }
 
-  function findStage(id: string): PipelineStageId | undefined {
-    if (PIPELINE_STAGES.some((stage) => stage.id === id)) return id as PipelineStageId;
-    return board.find((lead) => lead.id === id)?.stage as PipelineStageId | undefined;
+  function findColumn(id: string): PipelineColumnId | undefined {
+    if (PIPELINE_COLUMNS.some((column) => column.id === id)) return id as PipelineColumnId;
+    const lead = board.find((entry) => entry.id === id);
+    return lead ? pipelineColumnOf(lead) : undefined;
   }
 
-  async function moveLead(lead: PipelineLead, stage: PipelineStageId, from = lead.stage) {
-    if (needsPayment(from, stage)) {
+  function show(lead: PipelineLead) {
+    setBoard((prev) => prev.map((l) => (l.id === lead.id ? lead : l)));
+  }
+
+  /** `lead` is the card as it was picked up, so a failed move can put it back. */
+  async function moveLead(lead: PipelineLead, column: PipelineColumnId) {
+    if (column !== "cold" && needsPayment(lead.stage, column)) {
       // The card waits in its new column while the payment is entered; cancelling puts it back.
-      setBoard((prev) => prev.map((l) => (l.id === lead.id ? { ...l, stage } : l)));
-      setPendingMove({ lead, stage, from });
+      show(placeIn(lead, column));
+      setPendingMove({ lead, stage: column });
       return;
     }
-    await commitMove(lead, stage, from);
+    await commitMove(lead, column);
   }
 
-  async function commitMove(lead: PipelineLead, stage: PipelineStageId, from: string, payment?: StagePayment) {
-    setBoard((prev) => prev.map((l) => (l.id === lead.id ? { ...l, stage } : l)));
+  async function commitMove(lead: PipelineLead, column: PipelineColumnId, payment?: StagePayment) {
+    const moved = placeIn(lead, column);
+    show(moved);
     try {
-      await updateLead(lead.id, { stage, payment });
+      await updateLead(lead.id, {
+        stage: moved.stage !== lead.stage ? moved.stage : undefined,
+        temperature: moved.temperature !== lead.temperature ? moved.temperature : undefined,
+        payment,
+      });
       onMoved();
     } catch (err) {
-      setBoard((prev) => prev.map((l) => (l.id === lead.id ? { ...l, stage: from } : l)));
+      show(lead);
       if (payment) throw err;
       onError(err instanceof Error ? err.message : "Could not move that lead.");
     }
@@ -261,27 +285,29 @@ export function PipelineBoard({
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
     if (!over) return;
-    const activeStage = findStage(String(active.id));
-    const overStage = findStage(String(over.id));
-    if (!activeStage || !overStage || activeStage === overStage) return;
+    const activeColumn = findColumn(String(active.id));
+    const overColumn = findColumn(String(over.id));
+    if (!activeColumn || !overColumn || activeColumn === overColumn || !activeLead) return;
 
-    setBoard((prev) => prev.map((lead) => (lead.id === active.id ? { ...lead, stage: overStage } : lead)));
+    // Placed from the card as picked up, so crossing several columns doesn't stack their changes.
+    show(placeIn(activeLead, overColumn));
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const dragged = activeLead;
     setActiveLead(null);
-    if (!event.over || !dragged) return;
+    if (!dragged) return;
 
-    const overStage = findStage(String(event.over.id));
-    // `dragged` still holds the stage the card was picked up from; the board already shows the new one.
-    if (overStage && overStage !== dragged.stage) void moveLead(dragged, overStage, dragged.stage);
+    const overColumn = event.over ? findColumn(String(event.over.id)) : undefined;
+    // `dragged` still holds the card as picked up; the board already shows it in the new column.
+    if (overColumn && overColumn !== pipelineColumnOf(dragged)) void moveLead(dragged, overColumn);
+    else show(dragged);
   }
 
   if (isLoading) {
     return (
       <div className="kanban-scroll flex gap-4 overflow-x-auto px-4 py-6 sm:px-8">
-        {PIPELINE_STAGES.map((meta) => (
+        {PIPELINE_COLUMNS.map((meta) => (
           <div key={meta.id} className="flex min-w-[200px] flex-1 flex-col gap-3 bg-column-bg">
             <StageHeading meta={meta} />
             {Array.from({ length: 2 }).map((_, i) => (
@@ -302,12 +328,12 @@ export function PipelineBoard({
       onDragEnd={handleDragEnd}
     >
       <div className="kanban-scroll flex items-start gap-4 overflow-x-auto px-4 py-6 sm:px-8">
-        {PIPELINE_STAGES.map((meta) => (
+        {PIPELINE_COLUMNS.map((meta) => (
           <Column
             key={meta.id}
             meta={meta}
             stage={stages.find((stage) => stage.id === meta.id)}
-            leads={board.filter((lead) => lead.stage === meta.id)}
+            leads={board.filter((lead) => pipelineColumnOf(lead) === meta.id)}
             canDrag={canDrag}
             onOpen={onOpenLead}
             onMove={(lead, stage) => void moveLead(lead, stage)}
@@ -322,13 +348,12 @@ export function PipelineBoard({
           customerId={pendingMove.lead.customer_id}
           stage={pendingMove.stage}
           onClose={() => {
-            const { lead, from } = pendingMove;
-            setBoard((prev) => prev.map((l) => (l.id === lead.id && l.stage !== from ? { ...l, stage: from } : l)));
+            show(pendingMove.lead);
             setPendingMove(null);
           }}
           onSubmit={async (payment) => {
-            const { lead, stage, from } = pendingMove;
-            await commitMove(lead, stage, from, payment);
+            const { lead, stage } = pendingMove;
+            await commitMove(lead, stage, payment);
             // Already saved, so closing must not move the card back.
             setPendingMove(null);
           }}
