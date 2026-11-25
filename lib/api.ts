@@ -1787,9 +1787,6 @@ export const setCustomerStarred = (id: string, isStarred: boolean) =>
     body: JSON.stringify({ is_starred: isStarred }),
   });
 
-export const deleteCustomer = (id: string) =>
-  apiFetch<{ message: string }>(`/customers/${id}`, { method: "DELETE" });
-
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
 /** `scope` is "system" for admins, "own" for agents — the server decides, not the client. */

@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { ViewTransition } from "react";
-import { EmailIcon, MapPinIcon, PlusIcon, TrashIcon } from "@/components/icons/DashboardIcons";
+import { EmailIcon, MapPinIcon, PlusIcon } from "@/components/icons/DashboardIcons";
 import { ClientLeads } from "@/components/customers/ClientLeads";
 import { LeadDetailModal } from "@/components/LeadDetailModal";
 import { NewLeadModal } from "@/components/NewLeadModal";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { deleteCustomer, getCustomer, type Customer, type Lead } from "@/lib/api";
+import { getCustomer, type Customer, type Lead } from "@/lib/api";
 import { reaches, useCan, useScope } from "@/lib/session";
 import { getSessionUser } from "@/lib/api";
 import { COUNTRIES, CUSTOMER_STAGES } from "@/lib/customers";
@@ -59,8 +59,6 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const canDelete = useCan("customers.delete");
   const canAssign = useCan("customers.assign");
   const editScope = useScope("customers.edit");
   const canCreateLead = useCan("leads.create");
@@ -68,7 +66,6 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
   const [leadsVersion, setLeadsVersion] = useState(0);
@@ -105,18 +102,6 @@ export default function CustomerDetailPage() {
     window.addEventListener("leads:changed", refreshLeads);
     return () => window.removeEventListener("leads:changed", refreshLeads);
   }, [refreshLeads]);
-
-  async function handleDelete() {
-    setIsDeleting(true);
-    setError(null);
-    try {
-      await deleteCustomer(params.id);
-      router.push("/customers");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete customer.");
-      setIsDeleting(false);
-    }
-  }
 
   if (isLoading) {
     return (
@@ -215,17 +200,6 @@ export default function CustomerDetailPage() {
             >
               Edit customer
             </Link>
-          )}
-          {canDelete && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="flex w-fit items-center gap-2 rounded-lg border border-hot/30 px-4 py-2.5 text-sm font-semibold text-hot transition-colors hover:bg-hot/10 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <TrashIcon className="size-3.5" />
-              {isDeleting ? "Deleting..." : "Delete customer"}
-            </button>
           )}
         </div>
       </div>

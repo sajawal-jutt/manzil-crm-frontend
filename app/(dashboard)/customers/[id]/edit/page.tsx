@@ -73,7 +73,8 @@ export default function EditCustomerPage() {
   const [subSource, setSubSource] = useState("");
   const [country, setCountry] = useState("PK");
   const [stage, setStage] = useState<CustomerStage>("inquiry");
-  const [notes, setNotes] = useState("");
+  const [existingNotes, setExistingNotes] = useState("");
+  const [newNote, setNewNote] = useState("");
   const [assignTo, setAssignTo] = useState(UNASSIGNED_ID);
 
   const [agents, setAgents] = useState<SelectOption[]>([]);
@@ -111,7 +112,7 @@ export default function EditCustomerPage() {
         setSubSource(customer.sub_source ?? "");
         setCountry(customer.country);
         setStage(customer.stage);
-        setNotes(customer.notes ?? "");
+        setExistingNotes(customer.notes ?? "");
         setAssignTo(customer.assigned_to ? String(customer.assigned_to.id) : UNASSIGNED_ID);
 
         setAgents(
@@ -141,6 +142,7 @@ export default function EditCustomerPage() {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+    const addedNote = newNote.trim();
     try {
       await updateCustomer(params.id, {
         first_name: firstName,
@@ -156,7 +158,8 @@ export default function EditCustomerPage() {
         country,
         stage,
         customer_since: customerSince || undefined,
-        notes: notes || undefined,
+        // Notes are append-only on the server, so the new note goes after the existing text.
+        notes: addedNote ? (existingNotes ? `${existingNotes}\n\n${addedNote}` : addedNote) : undefined,
         assigned_to_id: assignTo !== UNASSIGNED_ID ? Number(assignTo) : undefined,
       });
       setIsSuccess(true);
@@ -340,14 +343,22 @@ export default function EditCustomerPage() {
           </Section>
 
           <Section title="Notes">
-            <textarea
-              id="customer-notes"
-              rows={5}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Preferences, history, anything worth remembering…"
-              className={`${inputClass} resize-y`}
-            />
+            {existingNotes && (
+              <p className="whitespace-pre-wrap rounded-lg bg-dash-bg px-4 py-3 text-sm leading-relaxed text-ink">
+                {existingNotes}
+              </p>
+            )}
+            <Field label="Add note" htmlFor="customer-notes">
+              <textarea
+                id="customer-notes"
+                rows={4}
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Preferences, history, anything worth remembering…"
+                className={`${inputClass} resize-y`}
+              />
+            </Field>
+            <p className="text-xs text-muted">Notes can be added to but never edited or removed.</p>
           </Section>
         </div>
 
