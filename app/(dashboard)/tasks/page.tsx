@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { use, useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -101,8 +102,6 @@ function TasksList({ linkedSearch }: { linkedSearch: string }) {
   const [tasks, setTasks] = useState<FollowUp[]>([]);
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState<Record<TaskTab, number> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading, linkedSearch);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useNavigationState<Filters>("draft", { ...EMPTY_FILTERS, search: linkedSearch }, linkedSearch);
@@ -112,6 +111,9 @@ function TasksList({ linkedSearch }: { linkedSearch: string }) {
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "desc", linkedSearch);
   const [page, setPage] = useNavigationState("page", 1, linkedSearch);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10, linkedSearch);
+  const queryKey = JSON.stringify([tab, filters, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading, linkedSearch);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
 
@@ -138,17 +140,19 @@ function TasksList({ linkedSearch }: { linkedSearch: string }) {
     setError(null);
     try {
       const res = await getTasks({ ...buildQuery(), page, limit: pageSize });
+      if (!isCurrent(queryKey)) return;
       setTasks(res.data);
       setTotal(res.total);
       setStatusCounts(res.status_counts);
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load tasks.");
       setTasks([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [buildQuery, page, pageSize]);
+  }, [buildQuery, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();

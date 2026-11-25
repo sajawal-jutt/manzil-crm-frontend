@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -72,8 +73,6 @@ export default function TeamsPage() {
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState<Record<TeamTab, number> | null>(null);
   const [options, setOptions] = useState({ departments: [] as string[], regions: [] as string[] });
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useNavigationState<Filters>("draft", EMPTY_FILTERS);
@@ -83,6 +82,9 @@ export default function TeamsPage() {
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "asc");
   const [page, setPage] = useNavigationState("page", 1);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10);
+  const queryKey = JSON.stringify([tab, filters, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading);
 
   const [everyone, setEveryone] = useState<TeamMember[]>([]);
   // The team whose members the summary panel lists; falls back to the first row.
@@ -116,18 +118,20 @@ export default function TeamsPage() {
     setError(null);
     try {
       const res = await getTeamsOverview({ ...buildQuery(), page, limit: pageSize });
+      if (!isCurrent(queryKey)) return;
       setTeams(res.data);
       setTotal(res.total);
       setStatusCounts(res.status_counts);
       setOptions({ departments: res.departments, regions: res.regions });
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load teams.");
       setTeams([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [buildQuery, page, pageSize]);
+  }, [buildQuery, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();
@@ -137,14 +141,14 @@ export default function TeamsPage() {
 
   useEffect(() => {
     if (!summaryTeam) return;
-    let isCurrent = true;
+    let isActive = true;
     getStaff({ team_id: summaryTeam.id, limit: SUMMARY_LIMIT })
       .then((res) => {
-        if (isCurrent) setSummaryMembers(res.data);
+        if (isActive) setSummaryMembers(res.data);
       })
       .catch(() => {});
     return () => {
-      isCurrent = false;
+      isActive = false;
     };
   }, [summaryTeam]);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -105,8 +106,6 @@ export default function StaffPage() {
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState<Record<StaffTab, number> | null>(null);
   const [options, setOptions] = useState({ departments: [] as string[], designations: [] as string[], regions: [] as string[] });
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useNavigationState<Filters>("draft", EMPTY_FILTERS);
@@ -116,6 +115,9 @@ export default function StaffPage() {
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "asc");
   const [page, setPage] = useNavigationState("page", 1);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10);
+  const queryKey = JSON.stringify([tab, filters, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading);
 
   const [everyone, setEveryone] = useState<TeamMember[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -155,18 +157,20 @@ export default function StaffPage() {
         page,
         limit: pageSize,
       });
+      if (!isCurrent(queryKey)) return;
       setStaff(res.data);
       setTotal(res.total);
       setStatusCounts(res.status_counts);
       setOptions({ departments: res.departments, designations: res.designations, regions: res.regions });
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load staff.");
       setStaff([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [tab, filters, favouritesOnly, sort, page, pageSize]);
+  }, [tab, filters, favouritesOnly, sort, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();

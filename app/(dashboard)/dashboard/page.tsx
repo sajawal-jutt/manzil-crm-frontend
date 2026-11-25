@@ -237,7 +237,9 @@ function FunnelChart({ funnel, labels }: { funnel: Funnel; labels: [keyof Funnel
 
 export default function DashboardPage() {
   const [date, setDate] = useState(localToday);
-  const [data, setData] = useState<Performance | null>(null);
+  // Kept with the date it is for, so picking another day shows skeletons rather than the old day's numbers.
+  const [loaded, setLoaded] = useState<{ date: string; data: Performance } | null>(null);
+  const data = loaded?.date === date ? loaded.data : null;
   const [error, setError] = useState<string | null>(null);
   const [taskTab, setTaskTab] = useState<TaskTab>("today");
   const [funnelTab, setFunnelTab] = useState<FunnelTab>("calls");
@@ -248,7 +250,7 @@ export default function DashboardPage() {
     getPerformance(date)
       .then((res) => {
         if (cancelled) return;
-        setData(res);
+        setLoaded({ date, data: res });
         setError(null);
       })
       .catch((err) => {

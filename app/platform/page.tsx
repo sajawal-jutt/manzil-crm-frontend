@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -39,8 +40,6 @@ function formatDate(value: string | null) {
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [draftSearch, setDraftSearch] = useState("");
@@ -48,6 +47,9 @@ export default function CompaniesPage() {
   const [tab, setTab] = useNavigationState<Tab>("tab", "all");
   const [page, setPage] = useNavigationState("page", 1);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 20);
+  const queryKey = JSON.stringify([search, tab, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
@@ -61,16 +63,18 @@ export default function CompaniesPage() {
         page,
         limit: pageSize,
       });
+      if (!isCurrent(queryKey)) return;
       setCompanies(res.data);
       setTotal(res.total);
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load companies.");
       setCompanies([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [search, tab, page, pageSize]);
+  }, [search, tab, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -69,8 +70,6 @@ export default function SalesDisputesPage() {
   const [disputes, setDisputes] = useState<SalesDispute[]>([]);
   const [total, setTotal] = useState(0);
   const [tabCounts, setTabCounts] = useState<Record<DisputeTab, number> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useNavigationState<Filters>("draft", EMPTY_FILTERS);
@@ -80,6 +79,9 @@ export default function SalesDisputesPage() {
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "desc");
   const [page, setPage] = useNavigationState("page", 1);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10);
+  const queryKey = JSON.stringify([tab, filters, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading);
   const [owners, setOwners] = useState<TeamMember[]>([]);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
@@ -107,17 +109,19 @@ export default function SalesDisputesPage() {
     setError(null);
     try {
       const res = await getSalesDisputes({ ...buildQuery(), page, limit: pageSize });
+      if (!isCurrent(queryKey)) return;
       setDisputes(res.data);
       setTotal(res.total);
       setTabCounts(res.tab_counts);
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load cases.");
       setDisputes([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [buildQuery, page, pageSize]);
+  }, [buildQuery, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();

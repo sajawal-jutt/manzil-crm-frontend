@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -64,8 +65,6 @@ export default function LocationsPage() {
   const [statusCounts, setStatusCounts] = useState<Record<LocationTab, number> | null>(null);
   const [cities, setCities] = useState<string[]>([]);
   const [regions, setRegions] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useNavigationState<Filters>("draft", EMPTY_FILTERS);
@@ -75,6 +74,9 @@ export default function LocationsPage() {
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "asc");
   const [page, setPage] = useNavigationState("page", 1);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10);
+  const queryKey = JSON.stringify([tab, filters, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
 
   useEffect(() => {
@@ -98,19 +100,21 @@ export default function LocationsPage() {
     setError(null);
     try {
       const res = await getLocations({ ...buildQuery(), page, limit: pageSize });
+      if (!isCurrent(queryKey)) return;
       setLocations(res.data);
       setTotal(res.total);
       setStatusCounts(res.status_counts);
       setCities(res.cities);
       setRegions(res.regions);
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load locations.");
       setLocations([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [buildQuery, page, pageSize]);
+  }, [buildQuery, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();

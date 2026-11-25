@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -78,7 +79,8 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
   const [total, setTotal] = useState(0);
   const [statusCounts, setStatusCounts] = useState<Record<UnitStatus, number> | null>(null);
   const [unitTypes, setUnitTypes] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryKey = JSON.stringify([inventoryType, filters, status, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
   useNavigationScroll(!isLoading, initialProject);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,6 +119,7 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
       limit: pageSize,
     })
       .then((res) => {
+        if (!isCurrent(queryKey)) return;
         // Deleting the last row on a page would otherwise strand you on an empty one.
         if (res.data.length === 0 && page > 1) setPage((p) => p - 1);
         setUnits(res.data);
@@ -125,9 +128,11 @@ function Inventory({ inventoryType }: { inventoryType: InventoryType }) {
         setUnitTypes(res.unit_types);
         setError(null);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load units."))
-      .finally(() => setIsLoading(false));
-  }, [inventoryType, filters, status, favouritesOnly, sort, page, pageSize, setPage]);
+      .catch((err) => {
+        if (isCurrent(queryKey)) setError(err instanceof Error ? err.message : "Failed to load units.");
+      })
+      .finally(() => markLoaded(queryKey));
+  }, [inventoryType, filters, status, favouritesOnly, sort, page, pageSize, setPage, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     loadUnits();
