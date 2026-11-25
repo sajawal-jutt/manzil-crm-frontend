@@ -543,7 +543,7 @@ export type PipelineLead = Lead & {
 };
 
 export type PipelineStage = {
-  id: "inquiry" | "prospect" | "mature" | "pre_closure" | "sold";
+  id: "inquiry" | "prospect" | "mature" | "pre_closure" | "sold" | "cold";
   count: number;
   total: number;
   /** The first `per_stage` deals, not all `count` of them. */
