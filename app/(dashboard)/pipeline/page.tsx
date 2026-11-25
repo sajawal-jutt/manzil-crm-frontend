@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -96,15 +97,24 @@ export default function PipelinePage() {
     [filters, view, favouritesOnly, sort],
   );
 
+  const queryKey = JSON.stringify([filters, view, favouritesOnly, sort, showAll]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+
   const load = useCallback(() => {
     getPipeline({ ...buildQuery(), per_stage: showAll ? ALL_PER_STAGE : PREVIEW_PER_STAGE })
       .then((res) => {
+        if (!isCurrent(queryKey)) return;
         setPipeline(res);
         setUpdatedAt(new Date());
         setError(null);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load the pipeline."));
-  }, [buildQuery, showAll]);
+      .catch((err) => {
+        if (isCurrent(queryKey)) setError(err instanceof Error ? err.message : "Failed to load the pipeline.");
+      })
+      .finally(() => markLoaded(queryKey));
+  }, [buildQuery, showAll, queryKey, isCurrent, markLoaded]);
+
+  const shown = isLoading ? null : pipeline;
 
   useEffect(() => {
     load();
@@ -133,7 +143,7 @@ export default function PipelinePage() {
     }
   }
 
-  const totalValue = pipeline?.stages.reduce((sum, stage) => sum + stage.total, 0) ?? 0;
+  const totalValue = shown?.stages.reduce((sum, stage) => sum + stage.total, 0) ?? 0;
 
   return (
     <ViewTransition>
@@ -144,8 +154,8 @@ export default function PipelinePage() {
               Sales pipeline
             </h1>
             <p className="text-[11px] text-muted">
-              {pipeline
-                ? `${pipeline.active_count} active opportunities · ${formatMoney(pipeline.active_value)}`
+              {shown
+                ? `${shown.active_count} active opportunities · ${formatMoney(shown.active_value)}`
                 : " "}
             </p>
           </div>
@@ -248,7 +258,7 @@ export default function PipelinePage() {
               </thead>
               <tbody>
                 {PIPELINE_COLUMNS.map((meta) => {
-                  const stage = pipeline?.stages.find((entry) => entry.id === meta.id);
+                  const stage = shown?.stages.find((entry) => entry.id === meta.id);
                   return (
                     <tr key={meta.id} className={`${rowClass} !h-[62px]`}>
                       <td className="pr-3 font-bold">{meta.label}</td>
@@ -265,8 +275,8 @@ export default function PipelinePage() {
           </div>
         ) : (
           <PipelineBoard
-            stages={pipeline?.stages ?? []}
-            isLoading={!pipeline}
+            stages={shown?.stages ?? []}
+            isLoading={!shown}
             canDrag
             onOpenLead={setSelectedLead}
             onMoved={load}

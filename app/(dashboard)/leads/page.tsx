@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -76,7 +77,8 @@ function LeadsDirectory() {
   const [tab, setTab] = useNavigationState<LeadTab>("tab", "all", initialSearch);
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "desc", initialSearch);
   const [filters, setFilters] = useNavigationState<LeadListFilters>("filters", () => initialLeadListFilters(initialSearch), initialSearch);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryKey = JSON.stringify([page, pageSize, tab, sort, filters]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
   useNavigationScroll(!isLoading, initialSearch);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [taskLead, setTaskLead] = useState<Lead | null>(null);
@@ -103,15 +105,16 @@ function LeadsDirectory() {
       budget_max: filters.budget_max ? Number(filters.budget_max) : undefined,
     })
       .then((res) => {
+        if (!isCurrent(queryKey)) return;
         // Deleting the last row on a page would otherwise strand you on an empty one.
         if (res.data.length === 0 && page > 1) setPage((p) => p - 1);
         setLeads(res.data);
         setTotal(res.total);
         setTabCounts(res.tab_counts);
-        setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
-  }, [page, pageSize, tab, sort, filters, setPage]);
+      .catch(() => {})
+      .finally(() => markLoaded(queryKey));
+  }, [page, pageSize, tab, sort, filters, setPage, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     load();

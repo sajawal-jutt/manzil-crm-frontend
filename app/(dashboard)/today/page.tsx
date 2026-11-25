@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { use, useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -97,8 +98,6 @@ export default function TodosPage({
   const [todos, setTodos] = useState<FollowUp[]>([]);
   const [total, setTotal] = useState(0);
   const [windowCounts, setWindowCounts] = useState<Record<TodoWindow, number> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading, JSON.stringify([linked, linkedRange]));
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useNavigationState<Filters>("draft", linked, JSON.stringify([linked, linkedRange]));
@@ -110,6 +109,9 @@ export default function TodosPage({
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "asc", JSON.stringify([linked, linkedRange]));
   const [page, setPage] = useNavigationState("page", 1, JSON.stringify([linked, linkedRange]));
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10, JSON.stringify([linked, linkedRange]));
+  const queryKey = JSON.stringify([tab, filters, dueRange, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading, JSON.stringify([linked, linkedRange]));
   const [agents, setAgents] = useState<Agent[]>([]);
 
   useEffect(() => {
@@ -135,17 +137,19 @@ export default function TodosPage({
         page,
         limit: pageSize,
       });
+      if (!isCurrent(queryKey)) return;
       setTodos(res.data);
       setTotal(res.total);
       setWindowCounts(res.window_counts);
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load todos.");
       setTodos([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
-  }, [tab, filters, dueRange, favouritesOnly, sort, page, pageSize]);
+  }, [tab, filters, dueRange, favouritesOnly, sort, page, pageSize, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();

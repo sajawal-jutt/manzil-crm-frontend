@@ -1,6 +1,7 @@
 "use client";
 
 import { useNavigationScroll, useNavigationState } from "@/lib/use-navigation-state";
+import { useQueryLoading } from "@/lib/use-query-loading";
 
 import { useCallback, useEffect, useState } from "react";
 import { ViewTransition } from "react";
@@ -71,8 +72,6 @@ export default function ManagementPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [total, setTotal] = useState(0);
   const [tabCounts, setTabCounts] = useState<Record<ApprovalTab, number> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  useNavigationScroll(!isLoading);
   const [error, setError] = useState<string | null>(null);
 
   const [tab, setTab] = useNavigationState<ApprovalTab>("tab", "pending");
@@ -80,6 +79,9 @@ export default function ManagementPage() {
   const [sort, setSort] = useNavigationState<"asc" | "desc">("sort", "asc");
   const [page, setPage] = useNavigationState("page", 1);
   const [pageSize, setPageSize] = useNavigationState("pageSize", 10);
+  const queryKey = JSON.stringify([tab, favouritesOnly, sort, page, pageSize]);
+  const { isLoading, isCurrent, markLoaded } = useQueryLoading(queryKey);
+  useNavigationScroll(!isLoading);
   const [reviewing, setReviewing] = useState<Approval | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
@@ -93,19 +95,21 @@ export default function ManagementPage() {
         page,
         limit: pageSize,
       });
+      if (!isCurrent(queryKey)) return;
       setApprovals(res.data);
       setTotal(res.total);
       setTabCounts(res.tab_counts);
     } catch (err) {
+      if (!isCurrent(queryKey)) return;
       setError(err instanceof Error ? err.message : "Failed to load approvals.");
       setApprovals([]);
       setTotal(0);
     } finally {
-      setIsLoading(false);
+      markLoaded(queryKey);
     }
     // The overview is for whoever decides requests; anyone else just sees their requests below.
     if (canDecide) getManagementOverview().then(setOverview).catch(() => {});
-  }, [tab, favouritesOnly, sort, page, pageSize, canDecide]);
+  }, [tab, favouritesOnly, sort, page, pageSize, canDecide, queryKey, isCurrent, markLoaded]);
 
   useEffect(() => {
     void load();
