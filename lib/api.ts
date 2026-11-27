@@ -33,6 +33,7 @@ if (typeof window !== "undefined") {
 }
 
 const ACCESS_TOKEN_KEY = "access_token";
+const SESSION_ONLY_KEY = "access_token_session_only";
 
 type JwtPayload = {
   id: number;
@@ -57,9 +58,29 @@ function decodeJwtExp(token: string): number {
   return typeof payload?.exp === "number" ? payload.exp * 1000 : 0;
 }
 
+function hasSessionCookie() {
+  return document.cookie.split("; ").some((c) => c.startsWith("session=") && c !== "session=");
+}
+
+// The token lives in localStorage so tabs opened with Ctrl+click share it. Without "keep me signed in",
+// the browser-session cookie marks its lifetime: once the browser closes, the cookie is gone and so is the login.
 function readStoredToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY) ?? sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  const legacy = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (legacy) {
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    if (!localStorage.getItem(ACCESS_TOKEN_KEY)) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, legacy);
+      localStorage.setItem(SESSION_ONLY_KEY, "1");
+    }
+  }
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (token && localStorage.getItem(SESSION_ONLY_KEY) && !hasSessionCookie()) {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(SESSION_ONLY_KEY);
+    return null;
+  }
+  return token;
 }
 
 /** Returns the token only if it exists AND is not expired (with 30s buffer). */
@@ -92,23 +113,21 @@ export function setToken(token: string, remember: boolean) {
     responseCache.clear();
     clearNavigationState();
   }
-  if (remember) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, token);
-    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  } else {
-    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-  }
   setSessionCookie(token, remember);
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  if (remember) localStorage.removeItem(SESSION_ONLY_KEY);
+  else localStorage.setItem(SESSION_ONLY_KEY, "1");
 }
 
 export function clearToken() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(SESSION_ONLY_KEY);
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   // The cached role and permissions from lib/session.ts, and WelcomeGate's record of a finished first-login flow.
   sessionStorage.removeItem("access");
-  sessionStorage.removeItem("welcome_done");
+  localStorage.removeItem("welcome_done");
   responseCache.clear();
   clearNavigationState();
   document.cookie = "session=; path=/; max-age=0";
@@ -884,7 +903,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     method: "PATCH",
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
-  if (res.access_token) setToken(res.access_token, localStorage.getItem(ACCESS_TOKEN_KEY) !== null);
+  if (res.access_token) setToken(res.access_token, localStorage.getItem(SESSION_ONLY_KEY) === null);
   return res;
 }
 
